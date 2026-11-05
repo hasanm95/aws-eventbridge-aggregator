@@ -1,6 +1,6 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, ScanCommand } = require("@aws-sdk/lib-dynamodb");
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const isSamLocal = process.env.AWS_SAM_LOCAL === "true";
 const isLocalstackEnv = process.env.LOCALSTACK_HOSTNAME;
@@ -13,18 +13,20 @@ if (isSamLocal) {
     endpointUrl = `http://${process.env.LOCALSTACK_HOSTNAME}:4566`;
 }
 
-const ddbClient = new DynamoDBClient({
+const awsConfig = {
     region: process.env.AWS_REGION || "us-east-1",
     endpoint: endpointUrl,
     credentials: (isSamLocal || isLocalstackEnv) ? { accessKeyId: "test", secretAccessKey: "test" } : undefined
-});
+};
+
+const ddbClient = new DynamoDBClient(awsConfig);
 const docClient = DynamoDBDocumentClient.from(ddbClient);
-const s3Client = new S3Client({})
+const s3Client = new S3Client(awsConfig)
 
 const SOURCE_TABLE_NAME = process.env.SOURCE_TABLE_NAME;
 const DEST_BUCKET_NAME = process.env.DEST_BUCKET_NAME
 
-exports.handler = async (event) => {
+exports.handler = async () => {
     const now = new Date();
     console.log(`Triggered by EventBridge at: ${now.toISOString()}`);
     
@@ -60,7 +62,7 @@ exports.handler = async (event) => {
         })
 
         await s3Client.send(putS3Command)
-        console.log(`Successfully generated report and saved to s3://${DEST_BUCKET}/${fileKey}`);
+        console.log(`Successfully generated report and saved to s3://${DEST_BUCKET_NAME}/${fileKey}`);
         
         return {
             statusCode: 200,
@@ -70,7 +72,7 @@ exports.handler = async (event) => {
         console.log("Error occurred: ", error)
         return {
             statusCode: 500,
-            body: `Failed to generate report: ${error}`
+            body: JSON.stringify(`Failed to generate report: ${error}`)
         }
     }
 }
