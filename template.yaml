@@ -13,3 +13,7 @@ Resources:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
     
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "aggregator-reports-${AWS::AccountId}-${AWS::Region}"
