@@ -16,3 +16,33 @@ Resources:
     Properties:
       BucketName:
         Fn::Sub: aggregator-reports-${AWS::AccountId}-${AWS::Region}
+  AggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ScheduledAggregator
+      Handler: app.handler
+      Runtime: nodejs24.x
+      CodeUri: AggregatorFunction
+      Timeout: 30
+      Environment:
+        Variables:
+          SOURCE_TABLE_NAME:
+            Ref: SourceDynamoDBTable
+          DEST_BUCKET_NAME:
+            Ref: ReportBucket
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: SourceDynamoDBTable
+      - S3WritePolicy:
+          BucketName:
+            Ref: ReportBucket
+      Events:
+        RunEveryTwoMinutes:
+          Type: Schedule
+          Properties:
+            Schedule: rate(2 minutes)
+            Description: Triggers aggregation every 2 minutes.
+            Enabled: true
+    Metadata:
+      SamResourceId: AggregatorFunction
