@@ -21,7 +21,10 @@ const awsConfig = {
 
 const ddbClient = new DynamoDBClient(awsConfig);
 const docClient = DynamoDBDocumentClient.from(ddbClient);
-const s3Client = new S3Client(awsConfig)
+const s3Client = new S3Client({
+    ...awsConfig,
+    forcePathStyle: (isSamLocal || isLocalstackEnv) ? true : undefined
+})
 
 const SOURCE_TABLE_NAME = process.env.SOURCE_TABLE_NAME;
 const DEST_BUCKET_NAME = process.env.DEST_BUCKET_NAME
@@ -31,12 +34,18 @@ exports.handler = async () => {
     console.log(`Triggered by EventBridge at: ${now.toISOString()}`);
     
     try {
-        // Scan the table to fetch rows
-        const scanCommand = new ScanCommand({
-            TableName: SOURCE_TABLE_NAME
-        })
-        const response = await docClient.send(scanCommand)
-        const items = response.Items || [];
+        // Scan the whole table, page by page.
+        // A single Scan returns at most 1MB; loop on LastEvaluatedKey to get every row.
+        const items = [];
+        let lastEvaluatedKey = undefined;
+        do {
+            const response = await docClient.send(new ScanCommand({
+                TableName: SOURCE_TABLE_NAME,
+                ExclusiveStartKey: lastEvaluatedKey
+            }));
+            items.push(...(response.Items || []));
+            lastEvaluatedKey = response.LastEvaluatedKey;
+        } while (lastEvaluatedKey);
         const totalSubmissions = items.length;
 
         // Generate the summary report payload
